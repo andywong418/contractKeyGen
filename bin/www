@@ -2,7 +2,7 @@
 /**
  * Ripple Lib Set up
  */
-const RippleAPI = require('ripple-lib')
+const RippleAPI = require('ripple-lib').RippleAPI
 const address = process.env.XRP_WALLET_ADDRESS
 const secret = process.env.XRP_WALLET_SECRET
 
