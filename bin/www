@@ -8,10 +8,9 @@ const secret = process.env.XRP_WALLET_SECRET
 
 const api = new RippleAPI({server: 'wss://s1/ripple.com:443'})
 const WebSocket = require('ws')
-const wss = new WebSocket.Server({ port: 8080 })
 
 
-const txJSON = {
+let txJSON = {
   "Flags": 0,
   "TransactionType": "SignerListSet",
   "Account": process.env.XRP_WALLET_ADDRESS,
@@ -19,12 +18,6 @@ const txJSON = {
   "SignerQuorum": 4,
   "SignerEntries": []
 }
-
-wss.on('connection', function connection(ws) {
-  ws.on('message', function incoming(message) {
-    console.log('received: %s', message)
-  })
-})
 
 //ping end point. Then Only sign if all public keys are returned.
 // Once they are all there, JSONstringify and then api.sign(txJSON, process.env.XRP_WALLET_SECRET)
@@ -35,6 +28,75 @@ const txJSON2 = {
   "Fee": "0",
   "SetFlag": 4
 }
+
+const hostList = process.env.CODIUS_HOSTS.split(',')
+const memo = new Map()
+const receivedAddresses = 0
+hostList.forEach(host => {
+  memo.set(host, {
+    ws: new WebSocket(host),
+    receivedAddress: false
+  })
+  const host = memo.get(host)
+  const ws = host.ws
+  ws.on('open', () => {
+    ws.send('keyGen Initiate')
+  })
+  ws.on('message', (data) => {
+    // Receive public addresses.
+    if (data.address && walletAddress && !host.receivedAddress) {
+      host.address = data.address
+      receivedAddresses += 1
+      host.receivedAddress = true
+      txJSON.SignerEntries.push({
+        "SignerEntry": {
+          "Account": data.address,
+          "SignerWeight": 1
+        }
+      })
+      if (receivedAddresses === hostList.length) {
+        // Created signed transmission for txJSON
+        txJSON = JSON.stringify(txJSON)
+        api.connect().then(() => {
+          return api.sign(txJSON, secret)
+        })
+        .then(result => {
+          console.log('result 1', result)
+          return api.submit(result.signedTransaction)
+        })
+        .catch(err => {
+          throw new Error('Error signing multi-sign account')
+        })
+        .then(submittedResult => {
+          if (submittedResult.resultCode === 'tesSUCCESS') {
+            // Disable keys
+            return api.sign(txJSON2, secret)
+          } else {
+            throw new Error('Error submitting multi-sign account')
+          }
+        })
+        .then(disableKeySign => {
+          console.log('result 2', disableKeySign)
+          return api.submit(disableKeySign.signedTransaction)
+        })
+        .catch(err => {
+          throw new Error('Error signing master key disabling transaction')
+        })
+        .then(disableKeySubmittedResult => {
+          console.log('result 3', disableKeySubmittedResult)
+          if (disableKeySubmittedResult.resultCode === 'tesSuccess') {
+            console.log("SUCCESS CREATING ACCOUNT")
+            // Send back to each host.
+          } else {
+            throw new Error('Error submitting master key disabling transaction')
+          }
+        })
+      }
+    }
+  })
+})
+
+
 
 // Sign and submit
 /**
