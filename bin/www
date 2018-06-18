@@ -37,7 +37,7 @@ hostList.forEach(host => {
     ws: new WebSocket(host),
     receivedAddress: false
   })
-  const host = memo.get(host)
+  host = memo.get(host)
   const ws = host.ws
   ws.on('open', () => {
     ws.send('keyGen Initiate')
