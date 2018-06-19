@@ -12,25 +12,7 @@ const WebSocket = require('ws')
 
 
 
-let txObj = {
-  signers: {
-    threshold: 3,
-    weights: [
-      {
-        address: "rato1hAeQjm3FDRZ3J1vygZM3Y435wsGgw",
-        weight: 1
-      },
-      {
-        address: "rKL8nYYZmNXkKoT2tCJCnAAnuwQkKGPTur",
-        weight: 1
-      }
-    ]
-  }
-}
 
-const txObj2 = {
-  disableMasterKey: true
-}
 
 function delay(t, v) {
   return new Promise(function(resolve) { 
@@ -38,6 +20,17 @@ function delay(t, v) {
   });
 }
 const hostList = process.env.CODIUS_HOSTS.split(',')
+let txObj = {
+  signers: {
+    threshold: hostList.length,
+    weights: []
+  }
+}
+
+const txObj2 = {
+  disableMasterKey: true
+}
+
 const memo = new Map()
 let receivedAddresses = 0
 console.log('hostList', hostList)
