@@ -6,90 +6,117 @@ const RippleAPI = require('ripple-lib').RippleAPI
 const address = process.env.XRP_WALLET_ADDRESS
 const secret = process.env.XRP_WALLET_SECRET
 
-const api = new RippleAPI({server: 'wss://s1/ripple.com:443'})
+const api = new RippleAPI({server: 'wss://s.altnet.rippletest.net:51233'})
+// CHange to wss://s1.ripple.com:443 for production
 const WebSocket = require('ws')
 
 
-let txJSON = {
-  "Flags": 0,
-  "TransactionType": "SignerListSet",
-  "Account": process.env.XRP_WALLET_ADDRESS,
-  "Fee": '10000',
-  "SignerQuorum": 4,
-  "SignerEntries": []
+
+let txObj = {
+  signers: {
+    threshold: 3,
+    weights: [
+      {
+        address: "rato1hAeQjm3FDRZ3J1vygZM3Y435wsGgw",
+        weight: 1
+      },
+      {
+        address: "rKL8nYYZmNXkKoT2tCJCnAAnuwQkKGPTur",
+        weight: 1
+      }
+    ]
+  }
 }
 
-//ping end point. Then Only sign if all public keys are returned.
-// Once they are all there, JSONstringify and then api.sign(txJSON, process.env.XRP_WALLET_SECRET)
-
-const txJSON2 = {
-  "TransactionType": "AccountSet",
-  "Account" : process.env.XRP_WALLET_ADDRESS,
-  "Fee": "0",
-  "SetFlag": 4
+const txObj2 = {
+  disableMasterKey: true
 }
 
+function delay(t, v) {
+  return new Promise(function(resolve) { 
+      setTimeout(resolve.bind(null, v), t)
+  });
+}
 const hostList = process.env.CODIUS_HOSTS.split(',')
 const memo = new Map()
-const receivedAddresses = 0
-hostList.forEach(host => {
-  memo.set(host, {
-    ws: new WebSocket(host),
+let receivedAddresses = 0
+console.log('hostList', hostList)
+hostList.forEach(hostURL => {
+  memo.set(hostURL, {
+    ws: new WebSocket(hostURL),
     receivedAddress: false
   })
-  host = memo.get(host)
+  const host = memo.get(hostURL)
   const ws = host.ws
   ws.on('open', () => {
-    ws.send('keyGen Initiate')
+    ws.send(JSON.stringify({
+      "keyGenInitiate": true
+    }))
   })
   ws.on('message', (data) => {
     // Receive public addresses.
-    if (data.address && walletAddress && !host.receivedAddress) {
+    data = JSON.parse(data)
+    console.log(data.address, data.walletAddress, host.receivedAddress)
+    if (data.address && data.walletAddress) {
       host.address = data.address
-      receivedAddresses += 1
+      if (!host.receivedAddress) {
+        receivedAddresses += 1
+      }
       host.receivedAddress = true
-      txJSON.SignerEntries.push({
-        "SignerEntry": {
-          "Account": data.address,
-          "SignerWeight": 1
-        }
+      txObj.signers.weights.push({
+        address: host.address,
+        weight: 1
       })
       if (receivedAddresses === hostList.length) {
         // Created signed transmission for txJSON
-        txJSON = JSON.stringify(txJSON)
         api.connect().then(() => {
-          return api.sign(txJSON, secret)
+          return api.prepareSettings(address, txObj)
         })
-        .then(result => {
-          console.log('result 1', result)
-          return api.submit(result.signedTransaction)
-        })
-        .catch(err => {
-          throw new Error('Error signing multi-sign account')
+        .then(prepareResult => {
+          const {signedTransaction} = api.sign(prepareResult.txJSON, secret)
+          return api.submit(signedTransaction)
         })
         .then(submittedResult => {
           if (submittedResult.resultCode === 'tesSUCCESS') {
-            // Disable keys
-            return api.sign(txJSON2, secret)
+            // Check accountObject
+            return delay(7000).then(() => {
+              return api.getAccountObjects(address)
+            })
           } else {
-            throw new Error('Error submitting multi-sign account')
+            throw new Error(err)
           }
         })
-        .then(disableKeySign => {
-          console.log('result 2', disableKeySign)
-          return api.submit(disableKeySign.signedTransaction)
+        .then(multiSignVerify => {
+          if (multiSignVerify.account_objects[0].SignerQuorum === 3) {
+            // the 3 should be hostList.length
+            return api.prepareSettings(address, txObj2)
+
+          } else {
+            throw new Error('Multi sign not set up!')
+          }
         })
-        .catch(err => {
-          throw new Error('Error signing master key disabling transaction')
+        .then(disableKeySettings => {
+          const {signedTransaction} = api.sign(disableKeySettings.txJSON, secret)
+          return api.submit(signedTransaction)
         })
         .then(disableKeySubmittedResult => {
-          console.log('result 3', disableKeySubmittedResult)
-          if (disableKeySubmittedResult.resultCode === 'tesSuccess') {
-            console.log("SUCCESS CREATING ACCOUNT")
-            // Send back to each host.
+          if (disableKeySubmittedResult.resultCode === 'tesSUCCESS') {
+            // Send back the public address as well as host list to one host which will propagate
+            const newHostList = hostList.filter(changedHost => {
+              return changedHost !== hostURL
+            })
+            const replyObj = {
+              "address": address,
+              "hostList": newHostList,
+              "sendVerifiedSharedWallet": true
+            }
+            ws.send(JSON.stringify(replyObj))
           } else {
             throw new Error('Error submitting master key disabling transaction')
           }
+        })
+        .catch(err => {
+          console.log(err)
         })
       }
     }
