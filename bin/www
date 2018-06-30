@@ -46,6 +46,9 @@ hostList.forEach(hostURL => {
       "keyGenInitiate": true
     }))
   })
+  const newHostList = hostList.filter(changedHost => {
+    return changedHost !== hostURL
+  })
   ws.on('message', (data) => {
     // Receive public addresses.
     data = JSON.parse(data)
@@ -76,11 +79,12 @@ hostList.forEach(hostURL => {
               return api.getAccountObjects(address)
             })
           } else {
-            throw new Error(err)
+            console.error(submittedResult)
           }
         })
         .then(multiSignVerify => {
-          if (multiSignVerify.account_objects[0].SignerQuorum === 3) {
+          console.log('multiSignVerify', multiSignVerify.account_objects[0].SignerQuorum, hostList.length)
+          if (multiSignVerify.account_objects[0].SignerQuorum === hostList.length) {
             // the 3 should be hostList.length
             return api.prepareSettings(address, txObj2)
 
@@ -95,9 +99,6 @@ hostList.forEach(hostURL => {
         .then(disableKeySubmittedResult => {
           if (disableKeySubmittedResult.resultCode === 'tesSUCCESS') {
             // Send back the public address as well as host list to one host which will propagate
-            const newHostList = hostList.filter(changedHost => {
-              return changedHost !== hostURL
-            })
             const replyObj = {
               "address": address,
               "hostList": newHostList,
