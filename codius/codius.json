@@ -1,0 +1,18 @@
+{
+  "manifest": {
+    "name": "contractKeyGen",
+    "version": "1.0.0",
+    "machine": "small",
+    "containers": [{
+        "id": "contractKeyGen",
+        "image": "<DOCKER_IMAGE>",
+        "command": ["/bin/sh"],
+        "workdir": "/root",
+        "environment": {
+          "PORT": "$PORT",
+          "XRP_WALLET_ADDRESS": "$XRP_WALLET_ADDRESS",
+          "XRP_WALLET_SECRET": "$XRP_WALLET_SECRET"
+        }
+    }]
+  }
+}

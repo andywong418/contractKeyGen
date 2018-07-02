@@ -1,0 +1,11 @@
+{
+  "public": {},
+  "private": {
+    "XRP_WALLET_SECRET": {
+      "value": "<XRP_WALLET_SECRET>"
+    },
+    "XRP_WALLET_SECRET": {
+      "value": "<XRP_WALLET_ADDRESS>"
+    }
+  }
+}
