@@ -1,11 +1,17 @@
 {
-  "public": {},
-  "private": {
-    "XRP_WALLET_SECRET": {
-      "value": "<XRP_WALLET_SECRET>"
+  "vars": {
+    "public": {
+      "PORT": {
+        "value": "<PORT>"
+      }
     },
-    "XRP_WALLET_SECRET": {
-      "value": "<XRP_WALLET_ADDRESS>"
+    "private": {
+      "XRP_WALLET_SECRET": {
+        "value": "<XRP_WALLET_SECRET>"
+      },
+      "XRP_WALLET_ADDRESS": {
+        "value": "<XRP_WALLET_ADDRESS>"
+      }
     }
   }
 }
